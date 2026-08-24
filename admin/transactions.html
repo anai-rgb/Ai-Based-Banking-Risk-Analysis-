@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Transactions</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Transactions</h1><p id="countSub">Loading transactions…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search transaction ID, customer, merchant…">
+        </div>
+        <select id="typeFilter"><option value="">All types</option></select>
+        <select id="riskFilter">
+          <option value="">All risk levels</option>
+          <option value="Normal">Normal</option>
+          <option value="Medium Risk">Medium Risk</option>
+          <option value="High Risk">High Risk</option>
+          <option value="Suspicious">Suspicious</option>
+        </select>
+        <select id="statusFilter">
+          <option value="">All statuses</option>
+          <option value="Completed">Completed</option>
+          <option value="Flagged">Flagged</option>
+          <option value="Under Review">Under Review</option>
+          <option value="Declined">Declined</option>
+        </select>
+        <select id="amountFilter">
+          <option value="">All amounts</option>
+          <option value="0-5000">Under ₹5,000</option>
+          <option value="5000-25000">₹5,000 – ₹25,000</option>
+          <option value="25000-100000">₹25,000 – ₹1,00,000</option>
+          <option value="100000-999999999">Above ₹1,00,000</option>
+        </select>
+        <select id="sortFilter">
+          <option value="date_desc">Sort: Newest first</option>
+          <option value="date_asc">Sort: Oldest first</option>
+          <option value="amount_desc">Sort: Amount (high → low)</option>
+          <option value="risk_desc">Sort: Risk score (high → low)</option>
+        </select>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Customer</th><th>Date</th><th>Type</th><th>Amount</th><th>Channel</th><th>Risk</th><th>Status</th></tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("transactions");
+  if (!session) return;
+  AuditLog.record("View", "Transactions");
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const rlBadge = { "High Risk": "orange", Suspicious: "red", "Medium Risk": "amber", Normal: "green" };
+  const txStatusBadge = { Completed: "green", Flagged: "red", "Under Review": "amber", Declined: "gray" };
+
+  const tx = DB.transactions;
+  document.getElementById("countSub").textContent = `${tx.length.toLocaleString("en-IN")} transactions on record · click any row for full detail.`;
+
+  // populate type filter dynamically from data
+  const types = [...new Set(tx.map(t => t.type))].sort();
+  document.getElementById("typeFilter").innerHTML += types.map(t => `<option value="${t}">${t}</option>`).join("");
+
+  const totalVolume = tx.reduce((s, t) => s + t.amount, 0);
+  const flaggedCount = tx.filter(t => t.status === "Flagged").length;
+  const avgRisk = (tx.reduce((s, t) => s + t.risk_score, 0) / tx.length).toFixed(1);
+  const kpis = [
+    { label: "Total Transactions", value: fmtNum(tx.length), icon: "icon-blue", svg: `<path d="M7 7h10M7 12h10M7 17h6"/>` },
+    { label: "Total Volume", value: fmtINR(totalVolume), icon: "icon-green", svg: `<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>` },
+    { label: "Flagged", value: fmtNum(flaggedCount), icon: "icon-red", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+    { label: "Avg. Risk Score", value: avgRisk, icon: "icon-amber", svg: `<path d="M3 12h4l3 8 4-16 3 8h4"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  // preset filters from URL (e.g. ?risk=Suspicious)
+  const params = new URLSearchParams(location.search);
+  if (params.get("risk")) document.getElementById("riskFilter").value = params.get("risk");
+  if (params.get("status")) document.getElementById("statusFilter").value = params.get("status");
+
+  createListPage({
+    data: tx,
+    pageSize: 30,
+    searchInputId: "searchInput",
+    searchFields: ["id", "customer_id", "merchant", "beneficiary"],
+    filters: [
+      { elId: "typeFilter", field: "type" },
+      { elId: "riskFilter", field: "risk_level" },
+      { elId: "statusFilter", field: "status" },
+    ],
+    sortSelectId: "sortFilter",
+    sortFns: {
+      date_desc: (a, b) => (b.date + b.time).localeCompare(a.date + a.time),
+      date_asc: (a, b) => (a.date + a.time).localeCompare(b.date + b.time),
+      amount_desc: (a, b) => b.amount - a.amount,
+      risk_desc: (a, b) => b.risk_score - a.risk_score,
+    },
+    defaultSort: "date_desc",
+    bodyId: "txBody",
+    countId: "resultsCount",
+    paginationId: "pagination",
+    colSpan: 8,
+    rowAttrs: t => `onclick="location.href='transaction-details.html?id=${t.id}'"`,
+    columns: [
+      { render: t => `<span class="mono">${t.id}</span>` },
+      { render: t => t.customer_id },
+      { render: t => fmtDate(t.date) },
+      { render: t => t.type },
+      { render: t => `<span class="amount-out">${fmtINR(t.amount)}</span>` },
+      { render: t => t.channel },
+      { render: t => `<span class="badge ${rlBadge[t.risk_level] || "gray"}">${t.risk_level}</span>` },
+      { render: t => `<span class="badge ${txStatusBadge[t.status] || "gray"}">${t.status}</span>` },
+    ],
+    emptyMessage: "No transactions match your filters.",
+  });
+
+  // amount range filter (custom, since it's a range not exact match)
+  const amountEl = document.getElementById("amountFilter");
+  const origData = tx;
+  amountEl.addEventListener("change", () => {
+    // re-run createListPage with filtered subset by monkeypatching data via a wrapper page
+    location_reload_with_amount();
+  });
+  function location_reload_with_amount() {
+    const val = amountEl.value;
+    let filtered = origData;
+    if (val) {
+      const [min, max] = val.split("-").map(Number);
+      filtered = origData.filter(t => t.amount >= min && t.amount <= max);
+    }
+    createListPage({
+      data: filtered, pageSize: 30, searchInputId: "searchInput",
+      searchFields: ["id", "customer_id", "merchant", "beneficiary"],
+      filters: [{ elId: "typeFilter", field: "type" }, { elId: "riskFilter", field: "risk_level" }, { elId: "statusFilter", field: "status" }],
+      sortSelectId: "sortFilter",
+      sortFns: {
+        date_desc: (a, b) => (b.date + b.time).localeCompare(a.date + a.time),
+        date_asc: (a, b) => (a.date + a.time).localeCompare(b.date + b.time),
+        amount_desc: (a, b) => b.amount - a.amount,
+        risk_desc: (a, b) => b.risk_score - a.risk_score,
+      },
+      defaultSort: "date_desc", bodyId: "txBody", countId: "resultsCount", paginationId: "pagination", colSpan: 8,
+      rowAttrs: t => `onclick="location.href='transaction-details.html?id=${t.id}'"`,
+      columns: [
+        { render: t => `<span class="mono">${t.id}</span>` }, { render: t => t.customer_id }, { render: t => fmtDate(t.date) },
+        { render: t => t.type }, { render: t => `<span class="amount-out">${fmtINR(t.amount)}</span>` }, { render: t => t.channel },
+        { render: t => `<span class="badge ${rlBadge[t.risk_level] || "gray"}">${t.risk_level}</span>` },
+        { render: t => `<span class="badge ${txStatusBadge[t.status] || "gray"}">${t.status}</span>` },
+      ],
+      emptyMessage: "No transactions match your filters.",
+    });
+  }
+})();
+</script>
+</body>
+</html>

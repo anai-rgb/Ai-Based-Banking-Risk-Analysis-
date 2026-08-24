@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Reports &amp; Analytics</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Reports &amp; Analytics</h1><p>Live analytics computed from the transaction and customer CSVs.</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="directory-toolbar" style="margin-bottom:20px;">
+      <select id="rangeFilter">
+        <option value="all">All time</option>
+        <option value="today">Today</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+        <option value="6m">Last 6 months</option>
+      </select>
+      <div class="search-box" id="customRangeBox" style="display:none; max-width:320px;">
+        <input type="date" id="rangeFrom" style="border:0; outline:0; font-size:13px; width:100%;">
+        <span style="color:var(--ink-300);">&rarr;</span>
+        <input type="date" id="rangeTo" style="border:0; outline:0; font-size:13px; width:100%;">
+      </div>
+      <select id="rangeCustomToggle" onchange="document.getElementById('customRangeBox').style.display=this.value==='custom'?'flex':'none'; document.getElementById('rangeFilter').value='all';" style="display:none;"></select>
+      <button id="customRangeToggleBtn" style="border:1px solid var(--border); background:#fff; border-radius:10px; padding:9px 14px; font-size:12.5px; font-weight:700; color:var(--ink-700);">Custom range…</button>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-grid grid-3">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Transaction Trend</h3><p id="trendSub">By month</p></div></div>
+        <div id="trendChart" style="min-height:190px;"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Risk Level Distribution</h3><p>Selected date range</p></div></div>
+        <div id="riskChart" style="min-height:190px;"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Transaction Type Distribution</h3><p>Selected date range</p></div></div>
+        <div id="typeChart" style="min-height:190px;"></div>
+      </div>
+    </div>
+
+    <div class="panel-grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Dispute Status</h3><p>Open vs resolved (all customers)</p></div></div>
+        <div id="disputeChart" style="min-height:190px;"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Summary Statistics</h3></div>
+        <ul class="mlist" id="summaryList"></ul>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/settings.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/charts-lite.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("reports");
+  if (!session) return;
+  AuditLog.record("View", "Reports & Analytics");
+
+  // Apply the default range from System Settings (a real, persisted setting)
+  const savedRange = (typeof AegisSettings !== "undefined") ? AegisSettings.get().defaultReportRange : "all";
+  document.getElementById("rangeFilter").value = savedRange || "all";
+
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+
+  const customers = DB.customers, allTx = DB.transactions;
+
+  document.getElementById("customRangeToggleBtn").addEventListener("click", () => {
+    const box = document.getElementById("customRangeBox");
+    box.style.display = box.style.display === "flex" ? "none" : "flex";
+    if (box.style.display === "flex") document.getElementById("rangeFilter").value = "all";
+  });
+
+  function filteredTx() {
+    const range = document.getElementById("rangeFilter").value;
+    const from = document.getElementById("rangeFrom").value;
+    const to = document.getElementById("rangeTo").value;
+    if (from || to) {
+      return allTx.filter(t => (!from || t.date >= from) && (!to || t.date <= to));
+    }
+    if (range === "all") return allTx;
+    const now = new Date("2026-08-23"); // app's reference "today"
+    let cutoff;
+    if (range === "today") cutoff = new Date(now); 
+    else if (range === "7d") cutoff = new Date(now.getTime() - 7 * 86400000);
+    else if (range === "30d") cutoff = new Date(now.getTime() - 30 * 86400000);
+    else if (range === "6m") cutoff = new Date(now.getTime() - 182 * 86400000);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return allTx.filter(t => t.date >= cutoffStr);
+  }
+
+  function render() {
+    const tx = filteredTx();
+    document.getElementById("trendSub").textContent = `${tx.length.toLocaleString("en-IN")} transactions in range`;
+
+    /* KPIs */
+    const totalVolume = tx.reduce((s, t) => s + t.amount, 0);
+    const suspicious = tx.filter(t => t.risk_level === "Suspicious").length;
+    const avgRisk = tx.length ? (tx.reduce((s, t) => s + t.risk_score, 0) / tx.length) : 0;
+    const totalDisputes = customers.reduce((s, c) => s + c.total_disputes, 0);
+    const resolvedDisputes = customers.reduce((s, c) => s + c.resolved_disputes, 0);
+
+    const kpis = [
+      { label: "Transaction Volume", value: fmtINR(totalVolume), icon: "icon-green", svg: `<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>` },
+      { label: "Transaction Count", value: fmtNum(tx.length), icon: "icon-blue", svg: `<path d="M7 7h10M7 12h10M7 17h6"/>` },
+      { label: "Suspicious (in range)", value: fmtNum(suspicious), icon: "icon-orange", svg: `<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>` },
+      { label: "Avg. Risk Score", value: avgRisk.toFixed(1), icon: "icon-amber", svg: `<path d="M3 12h4l3 8 4-16 3 8h4"/>` },
+      { label: "Resolution Rate", value: totalDisputes ? ((resolvedDisputes / totalDisputes) * 100).toFixed(1) + "%" : "—", icon: "icon-violet", svg: `<path d="M20 6L9 17l-5-5"/>` },
+    ];
+    document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+      <div class="kpi-card">
+        <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+        <div class="label">${k.label}</div><div class="value">${k.value}</div>
+      </div>`).join("");
+
+    /* Transaction trend (by day if range small, by month otherwise) */
+    const useDailyBuckets = tx.length > 0 && (new Set(tx.map(t => t.date))).size <= 31;
+    const bucketMap = new Map();
+    tx.forEach(t => {
+      const key = useDailyBuckets ? t.date : t.date.slice(0, 7);
+      bucketMap.set(key, (bucketMap.get(key) || 0) + 1);
+    });
+    const keys = [...bucketMap.keys()].sort();
+    const labels = keys.map(k => useDailyBuckets
+      ? new Date(k).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+      : new Date(k + "-01").toLocaleDateString("en-IN", { month: "short", year: "2-digit" }));
+    ChartsLite.line(document.getElementById("trendChart"), {
+      labels, series: [{ label: "Transactions", data: keys.map(k => bucketMap.get(k)) }],
+      colors: { Transactions: "#7c5cff" }
+    });
+
+    /* Risk distribution (transactions in range) */
+    const riskColors = { Normal: "#17a06a", "Medium Risk": "#d68a00", "High Risk": "#e0662f", Suspicious: "#dc3545" };
+    const riskDist = { Normal: 0, "Medium Risk": 0, "High Risk": 0, Suspicious: 0 };
+    tx.forEach(t => { if (riskDist[t.risk_level] !== undefined) riskDist[t.risk_level]++; });
+    ChartsLite.donut(document.getElementById("riskChart"), { data: riskDist, colors: riskColors });
+
+    /* Transaction type distribution */
+    const typeCounts = {};
+    tx.forEach(t => { typeCounts[t.type] = (typeCounts[t.type] || 0) + 1; });
+    ChartsLite.bar(document.getElementById("typeChart"), { data: typeCounts, horizontal: true, colors: {} });
+
+    /* Dispute status (not date-filterable — CSV has no per-dispute dates) */
+    const openD = customers.reduce((s, c) => s + c.open_disputes, 0);
+    const resD = customers.reduce((s, c) => s + c.resolved_disputes, 0);
+    ChartsLite.donut(document.getElementById("disputeChart"), {
+      data: { Open: openD, Resolved: resD }, colors: { Open: "#d68a00", Resolved: "#17a06a" }
+    });
+
+    /* Summary list */
+    document.getElementById("summaryList").innerHTML = `
+      <li><span>Total customers</span><b>${fmtNum(customers.length)}</b></li>
+      <li><span>Total accounts</span><b>${fmtNum(DB.accounts.length)}</b></li>
+      <li><span>Transactions in selected range</span><b>${fmtNum(tx.length)}</b></li>
+      <li><span>Total transaction volume (range)</span><b>${fmtINR(totalVolume)}</b></li>
+      <li><span>Total disputes (all time)</span><b>${fmtNum(totalDisputes)}</b></li>
+      <li><span>Resolved disputes (all time)</span><b>${fmtNum(resolvedDisputes)}</b></li>
+    `;
+  }
+
+  render();
+  document.getElementById("rangeFilter").addEventListener("change", () => {
+    document.getElementById("rangeFrom").value = ""; document.getElementById("rangeTo").value = "";
+    document.getElementById("customRangeBox").style.display = "none";
+    render();
+  });
+  document.getElementById("rangeFrom").addEventListener("change", render);
+  document.getElementById("rangeTo").addEventListener("change", render);
+  window.addEventListener("resize", () => { clearTimeout(window._rrz); window._rrz = setTimeout(render, 200); });
+})();
+</script>
+</body>
+</html>

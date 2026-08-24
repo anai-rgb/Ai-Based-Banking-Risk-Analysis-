@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Transaction Detail</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main" id="mainContent"></main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("transactions");
+  if (!session) return;
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const rlBadge = { "High Risk": "orange", Suspicious: "red", "Medium Risk": "amber", Normal: "green" };
+  const txStatusBadge = { Completed: "green", Flagged: "red", "Under Review": "amber", Declined: "gray" };
+
+  const params = new URLSearchParams(location.search);
+  const id = params.get("id");
+  const t = DB.transactions.find(x => x.id === id);
+  const main = document.getElementById("mainContent");
+
+  if (!t) {
+    main.innerHTML = `<div class="panel" style="text-align:center; padding:60px 20px;">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto 12px;"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <h3 style="margin-bottom:6px;">Transaction not found</h3>
+        <p>No transaction matches ID <b>${id || "(none supplied)"}</b>.</p>
+        <a href="transactions.html" style="display:inline-block; margin-top:16px; background:var(--navy-950); color:#fff; padding:10px 18px; border-radius:9px; font-weight:700; font-size:12.5px; text-decoration:none;">&larr; Back to Transactions</a>
+      </div></div>`;
+    return;
+  }
+
+  AuditLog.record("View", "Transaction Detail", t.id);
+  document.title = `Aegis Bank · ${t.id}`;
+  const customer = DB.custById.get(t.customer_id);
+
+  const flags = [];
+  if (t.is_new_beneficiary) flags.push("New beneficiary");
+  if (t.is_new_device) flags.push("New device");
+  if (t.location_mismatch) flags.push("Location mismatch");
+  if (t.is_unusual_time) flags.push("Unusual time");
+  if (t.failed_attempts > 0) flags.push(`${t.failed_attempts} failed attempt${t.failed_attempts > 1 ? "s" : ""} before success`);
+
+  main.innerHTML = `
+    <div class="detail-hero">
+      <div class="avatar-lg" style="background:linear-gradient(135deg,#e0662f,#c2410c);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" style="width:28px;height:28px;"><path d="M7 7h10M7 12h10M7 17h6"/></svg>
+      </div>
+      <div class="who">
+        <h2>${t.id}</h2>
+        <p>${fmtDate(t.date)} · ${t.time} · ${t.type} via ${t.channel}</p>
+        <div class="badges">
+          <span class="badge ${rlBadge[t.risk_level] || "gray"}">${t.risk_level} · Score ${t.risk_score}</span>
+          <span class="badge ${txStatusBadge[t.status] || "gray"}">${t.status}</span>
+        </div>
+      </div>
+      <a href="transactions.html" class="back-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>All Transactions</a>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="label">Amount</div><div class="value">${fmtINR(t.amount)}</div>
+        <div class="delta"><span class="muted">Avg for this customer: ${fmtINR(t.customer_avg_amount)}</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon ${rlBadge[t.risk_level] === "red" ? "icon-red" : rlBadge[t.risk_level] === "orange" ? "icon-orange" : rlBadge[t.risk_level] === "amber" ? "icon-amber" : "icon-green"}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+        </div>
+        <div class="label">Risk Score</div><div class="value">${t.risk_score}/100</div>
+        <div class="delta"><span class="muted">${t.risk_level}</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg></div>
+        <div class="label">Account</div><div class="value" style="font-size:16px;">${t.account_id}</div>
+        <div class="delta"><span class="muted">${t.location}</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div>
+        <div class="label">Anomaly Flags</div><div class="value">${flags.length}</div>
+        <div class="delta"><span class="muted">${flags.length ? "See evidence panel" : "None detected"}</span></div>
+      </div>
+    </div>
+
+    <div class="panel-grid grid-2-1">
+      <div class="panel">
+        <div class="panel-head"><h3>Transaction Information</h3></div>
+        <div class="info-grid">
+          <div class="cell"><span>Transaction ID</span><b>${t.id}</b></div>
+          <div class="cell"><span>Date</span><b>${fmtDate(t.date)}</b></div>
+          <div class="cell"><span>Time</span><b>${t.time}</b></div>
+          <div class="cell"><span>Type</span><b>${t.type}</b></div>
+          <div class="cell"><span>Channel</span><b>${t.channel}</b></div>
+          <div class="cell"><span>Amount</span><b>${fmtINR(t.amount)}</b></div>
+          <div class="cell"><span>Beneficiary</span><b>${t.beneficiary}</b></div>
+          <div class="cell"><span>Merchant</span><b>${t.merchant}</b></div>
+          <div class="cell"><span>Device ID</span><b>${t.device_id}</b></div>
+          <div class="cell"><span>Location</span><b>${t.location}</b></div>
+          <div class="cell"><span>Account ID</span><b>${t.account_id}</b></div>
+          <div class="cell"><span>Status</span><b>${t.status}</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Risk Evidence</h3></div>
+        ${flags.length ? `<ul class="mlist">${flags.map(f => `<li><span>${f}</span></li>`).join("")}</ul>` : `<div class="empty-state" style="padding:16px 4px;">No anomaly flags on this transaction.</div>`}
+        <div class="modal-note" style="margin-top:14px;">Amount deviation from customer average: <b>${(t.amount_deviation * 100).toFixed(1)}%</b></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><h3>Account Owner</h3><p>Linked customer for this transaction</p></div>${customer ? `<a href="customer-details.html?id=${customer.customer_id}" class="link">View Full Profile →</a>` : ""}</div>
+      ${customer ? `
+        <div class="info-grid">
+          <div class="cell"><span>Name</span><b>${customer.full_name}</b></div>
+          <div class="cell"><span>Customer ID</span><b>${customer.customer_id}</b></div>
+          <div class="cell"><span>Email</span><b>${customer.email}</b></div>
+          <div class="cell"><span>Risk Level</span><b>${customer.risk_level} (${customer.risk_score})</b></div>
+        </div>
+      ` : `<div class="empty-state" style="padding:16px 4px;">Customer record not found for this transaction.</div>`}
+    </div>
+  `;
+})();
+</script>
+</body>
+</html>

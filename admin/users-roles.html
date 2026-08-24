@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Users &amp; Roles</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Users &amp; Roles</h1><p id="countSub">Loading users…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="banner" style="margin-top:0; margin-bottom:20px;">
+      <div class="left">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+        <div><h4>Where this data comes from</h4><p>The uploaded CSVs contain one <b>Super Admin</b> account (fixed demo credential, since no admin CSV was supplied) and <b>2,500 Customer</b> portal accounts from the login-credentials CSV. There is no separate staff/employee role in the dataset — see Employee Management for that note.</p></div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by name, username, email…">
+        </div>
+        <select id="roleFilter">
+          <option value="">All roles</option>
+          <option value="Super Admin">Super Admin</option>
+          <option value="Customer">Customer</option>
+        </select>
+        <select id="statusFilter">
+          <option value="">All statuses</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Linked ID</th><th>Status</th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("users");
+  if (!session) return;
+  AuditLog.record("View", "Users & Roles");
+
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const statusBadgeMap = { Active: "green", Inactive: "gray" };
+  const roleBadgeMap = { "Super Admin": "violet", Customer: "blue" };
+
+  // Real users only: the fixed admin account(s) from auth.js + every customer portal login from the CSV
+  const adminUsers = ADMIN_ACCOUNTS.filter((a, i, arr) => arr.findIndex(x => x.name === a.name) === i)
+    .map(a => ({ name: a.name, username: a.username, role: a.role, linked_id: "—", status: "Active" }));
+  const customerUsers = DB.customers.map(c => ({
+    name: c.full_name, username: c.username, role: "Customer", linked_id: c.customer_id, status: c.customer_status
+  }));
+  const users = [...adminUsers, ...customerUsers];
+
+  document.getElementById("countSub").textContent = `${users.length.toLocaleString("en-IN")} user accounts on record.`;
+
+  const kpis = [
+    { label: "Total Users", value: fmtNum(users.length), icon: "icon-blue", svg: `<circle cx="9" cy="7" r="4"/><path d="M2 21c0-4.4 3.1-8 7-8s7 3.6 7 8"/><circle cx="17" cy="9" r="3"/>` },
+    { label: "Admin Accounts", value: fmtNum(adminUsers.length), icon: "icon-violet", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+    { label: "Customer Accounts", value: fmtNum(customerUsers.length), icon: "icon-green", svg: `<circle cx="9" cy="7" r="4"/><path d="M2 21c0-4.4 3.1-8 7-8s7 3.6 7 8"/>` },
+    { label: "Active", value: fmtNum(users.filter(u => u.status === "Active").length), icon: "icon-amber", svg: `<path d="M20 6L9 17l-5-5"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  createListPage({
+    data: users,
+    pageSize: 25,
+    searchInputId: "searchInput",
+    searchFields: ["name", "username", "linked_id"],
+    filters: [
+      { elId: "roleFilter", field: "role" },
+      { elId: "statusFilter", field: "status" },
+    ],
+    bodyId: "usersBody",
+    countId: "resultsCount",
+    paginationId: "pagination",
+    colSpan: 5,
+    rowAttrs: u => u.linked_id !== "—" ? `onclick="location.href='customer-details.html?id=${u.linked_id}'"` : "",
+    columns: [
+      { render: u => u.name },
+      { render: u => u.username },
+      { render: u => `<span class="badge ${roleBadgeMap[u.role] || "gray"}">${u.role}</span>` },
+      { render: u => `<span class="mono">${u.linked_id}</span>` },
+      { render: u => `<span class="badge ${statusBadgeMap[u.status] || "gray"}">${u.status}</span>` },
+    ],
+    emptyMessage: "No users match your filters.",
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · System Settings</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+<style>
+  .settings-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 0; border-bottom:1px solid #f0f2f8; }
+  .settings-row:last-child { border-bottom:0; }
+  .settings-row .txt b { display:block; font-size:13.5px; font-weight:700; color:var(--navy-950); }
+  .settings-row .txt span { font-size:12px; color:var(--ink-500); }
+  .switch { position:relative; width:42px; height:24px; flex:none; }
+  .switch input { opacity:0; width:0; height:0; }
+  .switch .track { position:absolute; inset:0; background:#d7dbe8; border-radius:999px; cursor:pointer; transition:.15s; }
+  .switch .track::before { content:""; position:absolute; width:18px; height:18px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.15s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .switch input:checked + .track { background:var(--violet-600); }
+  .switch input:checked + .track::before { transform: translateX(18px); }
+  .range-wrap { display:flex; align-items:center; gap:12px; }
+  .range-wrap input[type=range] { flex:1; accent-color: var(--violet-600); }
+  .range-wrap b { font-family:var(--font-display); font-size:16px; min-width:34px; text-align:right; }
+  select.settings-select, input.settings-number { border:1px solid var(--border); border-radius:9px; padding:8px 12px; font-size:13px; background:#fff; color:var(--ink-700); }
+</style>
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>System Settings</h1><p>These settings persist in your browser and actually change how the app behaves — try changing the risk threshold below.</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="panel-grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Risk Threshold</h3><p>Flag transactions with a risk score at or above this value</p></div></div>
+        <div class="range-wrap">
+          <input type="range" id="riskThreshold" min="0" max="100" step="1">
+          <b id="riskThresholdVal">70</b>
+        </div>
+        <div class="modal-note" style="margin-top:14px;" id="thresholdPreview">Computing live preview…</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Notification Preferences</h3></div>
+        <div class="settings-row">
+          <div class="txt"><b>Email alerts</b><span>Receive a summary email for flagged activity</span></div>
+          <label class="switch"><input type="checkbox" id="emailAlerts"><span class="track"></span></label>
+        </div>
+        <div class="settings-row">
+          <div class="txt"><b>High-risk transaction alerts</b><span>Notify when a transaction is High Risk or Suspicious</span></div>
+          <label class="switch"><input type="checkbox" id="highRiskAlerts"><span class="track"></span></label>
+        </div>
+        <div class="settings-row">
+          <div class="txt"><b>Dispute alerts</b><span>Notify when a customer's dispute count changes</span></div>
+          <label class="switch"><input type="checkbox" id="disputeAlerts"><span class="track"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Dashboard Preferences</h3></div></div>
+        <div class="settings-row">
+          <div class="txt"><b>Default Reports &amp; Analytics range</b><span>Applied when you open the Reports page</span></div>
+          <select id="defaultReportRange" class="settings-select">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="6m">Last 6 months</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <div class="txt"><b>Auto-refresh dashboard</b><span>Reload live KPI numbers automatically</span></div>
+          <select id="autoRefreshMinutes" class="settings-select">
+            <option value="0">Off</option>
+            <option value="1">Every 1 minute</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="15">Every 15 minutes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Data Source</h3></div>
+        <ul class="mlist" id="dataSourceList"></ul>
+        <div class="modal-note" style="margin-top:14px;">This app reads directly from the uploaded CSVs (baked into the JS bundle at build time). There's no live database connection in this demo — see the project's FastAPI + MySQL plan for the production architecture.</div>
+      </div>
+    </div>
+
+    <div class="panel" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+      <div style="font-size:12.5px; color:var(--ink-500);">Changes save automatically to this browser's local storage.</div>
+      <div style="display:flex; gap:10px;">
+        <button id="resetBtn" style="border:1px solid var(--border); background:#fff; padding:10px 16px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--ink-700);">Reset to defaults</button>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/settings.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("settings");
+  if (!session) return;
+  AuditLog.record("View", "System Settings");
+
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+  const els = {
+    riskThreshold: document.getElementById("riskThreshold"),
+    riskThresholdVal: document.getElementById("riskThresholdVal"),
+    emailAlerts: document.getElementById("emailAlerts"),
+    highRiskAlerts: document.getElementById("highRiskAlerts"),
+    disputeAlerts: document.getElementById("disputeAlerts"),
+    defaultReportRange: document.getElementById("defaultReportRange"),
+    autoRefreshMinutes: document.getElementById("autoRefreshMinutes"),
+  };
+
+  function loadIntoForm() {
+    const s = AegisSettings.get();
+    els.riskThreshold.value = s.riskThreshold;
+    els.riskThresholdVal.textContent = s.riskThreshold;
+    els.emailAlerts.checked = s.emailAlerts;
+    els.highRiskAlerts.checked = s.highRiskAlerts;
+    els.disputeAlerts.checked = s.disputeAlerts;
+    els.defaultReportRange.value = s.defaultReportRange;
+    els.autoRefreshMinutes.value = s.autoRefreshMinutes;
+    updatePreview();
+  }
+
+  function updatePreview() {
+    const threshold = Number(els.riskThreshold.value);
+    els.riskThresholdVal.textContent = threshold;
+    const flagged = DB.transactions.filter(t => t.risk_score >= threshold);
+    const pct = DB.transactions.length ? (flagged.length / DB.transactions.length * 100).toFixed(1) : "0.0";
+    document.getElementById("thresholdPreview").innerHTML =
+      `At threshold <b>${threshold}</b>: <b>${fmtNum(flagged.length)}</b> of ${fmtNum(DB.transactions.length)} transactions (${pct}%) would be flagged — total value ${fmtINR(flagged.reduce((s, t) => s + t.amount, 0))}.`;
+  }
+
+  els.riskThreshold.addEventListener("input", updatePreview);
+  els.riskThreshold.addEventListener("change", () => { AegisSettings.set({ riskThreshold: Number(els.riskThreshold.value) }); AuditLog.record("Update", "System Settings", "Risk threshold set to " + els.riskThreshold.value); });
+  els.emailAlerts.addEventListener("change", () => AegisSettings.set({ emailAlerts: els.emailAlerts.checked }));
+  els.highRiskAlerts.addEventListener("change", () => AegisSettings.set({ highRiskAlerts: els.highRiskAlerts.checked }));
+  els.disputeAlerts.addEventListener("change", () => AegisSettings.set({ disputeAlerts: els.disputeAlerts.checked }));
+  els.defaultReportRange.addEventListener("change", () => { AegisSettings.set({ defaultReportRange: els.defaultReportRange.value }); AuditLog.record("Update", "System Settings", "Default report range set to " + els.defaultReportRange.value); });
+  els.autoRefreshMinutes.addEventListener("change", () => AegisSettings.set({ autoRefreshMinutes: Number(els.autoRefreshMinutes.value) }));
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    AegisSettings.reset();
+    loadIntoForm();
+    AuditLog.record("Update", "System Settings", "Reset to defaults");
+  });
+
+  document.getElementById("dataSourceList").innerHTML = `
+    <li><span>Customers loaded</span><b>${fmtNum(DB.customers.length)}</b></li>
+    <li><span>Transactions loaded</span><b>${fmtNum(DB.transactions.length)}</b></li>
+    <li><span>Accounts derived</span><b>${fmtNum(DB.accounts.length)}</b></li>
+    <li><span>Alerts derived</span><b>${fmtNum(DB.alerts().length)}</b></li>
+  `;
+
+  loadIntoForm();
+})();
+</script>
+</body>
+</html>

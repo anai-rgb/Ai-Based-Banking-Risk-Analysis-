@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Dispute Investigation</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Dispute Investigation</h1><p>Open cases prioritized for review, with linked customer &amp; transaction context.</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel">
+      <div class="panel-head"><div><h3>Open Investigation Queue</h3><p>Customers with open disputes, ranked by risk score · click a row for the linked customer + transaction context</p></div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Customer</th><th>ID</th><th>Open Disputes</th><th>Risk Level</th><th>Risk Score</th><th>Most Recent Flagged Txn</th></tr></thead>
+          <tbody id="investigationBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("investigation");
+  if (!session) return;
+  AuditLog.record("View", "Dispute Investigation");
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const levelBadge = { Low: "green", Medium: "amber", High: "orange", "Very High": "red" };
+
+  const openCases = DB.disputes.filter(d => d.open > 0).sort((a, b) => b.risk_score - a.risk_score);
+  const highPriority = openCases.filter(d => d.risk_level === "High" || d.risk_level === "Very High").length;
+  const resolvedTotal = DB.disputes.reduce((s, d) => s + d.resolved, 0);
+
+  const kpis = [
+    { label: "Open Cases", value: fmtNum(openCases.length), icon: "icon-amber", svg: `<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>` },
+    { label: "High Priority", value: fmtNum(highPriority), icon: "icon-red", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+    { label: "Resolved to Date", value: fmtNum(resolvedTotal), icon: "icon-green", svg: `<path d="M20 6L9 17l-5-5"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  document.getElementById("investigationBody").innerHTML = openCases.map(d => {
+    const custTx = DB.txForCustomer(d.customer_id).filter(t => t.status === "Flagged" || t.status === "Under Review")
+      .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+    const linkedTx = custTx[0];
+    return `
+      <tr class="clickable" onclick="location.href='customer-details.html?id=${d.customer_id}'">
+        <td>${d.customer_name}</td>
+        <td class="mono">${d.customer_id}</td>
+        <td><span class="badge amber">${d.open}</span></td>
+        <td><span class="badge ${levelBadge[d.risk_level] || "gray"}">${d.risk_level}</span></td>
+        <td><b>${d.risk_score}</b></td>
+        <td>${linkedTx ? `<span class="mono">${linkedTx.id}</span> · ${fmtINR(linkedTx.amount)} · ${fmtDate(linkedTx.date)}` : `<span style="color:var(--ink-500);">No flagged transaction found</span>`}</td>
+      </tr>`;
+  }).join("") || `<tr><td colspan="6" style="text-align:center; color:var(--ink-500); padding:24px;">No open disputes to investigate.</td></tr>`;
+})();
+</script>
+</body>
+</html>

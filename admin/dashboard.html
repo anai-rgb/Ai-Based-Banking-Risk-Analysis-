@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Admin Dashboard</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+
+  <!-- ===== SIDEBAR ===== -->
+  <div id="sidebarMount"></div>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+    <div class="topbar">
+      <div class="titles">
+        <h1>Admin Dashboard</h1>
+        <p>Overview of the bank dispute system and risk intelligence.</p>
+      </div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+        <div class="topbar-user">
+          <div class="avatar">AV</div>
+          <div class="info"><b id="topName">Abhishek Verma</b><span>Super Admin</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- ROW: RISK DISTRIBUTION + TREND -->
+    <div class="panel-grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Risk Level Distribution</h3><p>Across all customers</p></div><a href="risk-monitoring.html" class="link">View Details</a></div>
+        <div id="riskDonut" style="min-height:190px;"></div>
+        <div class="legend-list" id="riskLegend"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h3>Transaction Risk Trend</h3><p>Monthly volume by risk tier</p></div><a href="reports.html" class="link">View Details</a></div>
+        <div id="trendLine" style="min-height:190px;"></div>
+      </div>
+    </div>
+
+    <!-- ROW: SUSPICIOUS TRANSACTIONS -->
+    <div class="panel-grid grid-2-1" style="margin-bottom:16px;">
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Suspicious Transactions <span class="badge red" style="margin-left:8px; padding:2px 8px;">AI flagged</span></h3><p>Classified "Suspicious" by the risk model · click a row for the customer</p></div>
+          <a href="suspicious-detection.html" class="link">View All</a>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>ID</th><th>Customer</th><th>Type</th><th>Amount</th><th>Risk Score</th><th>Channel</th><th>Status</th></tr></thead>
+            <tbody id="suspiciousTxBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Suspicious Activity Snapshot</h3></div>
+        <div class="mstat-grid" style="grid-template-columns:1fr;">
+          <div class="mstat"><b id="suspiciousCount">0</b><span>Suspicious transactions (all time)</span></div>
+          <div class="mstat"><b id="suspiciousAmount">₹0</b><span>Total value flagged</span></div>
+        </div>
+        <div class="modal-note" style="margin-top:12px;">"Suspicious" is a distinct AI classification from "High Risk" — it's the model's highest-confidence fraud signal, separate from the broader High-Risk Alerts count above.</div>
+      </div>
+    </div>
+
+    <!-- ROW: RECENT HIGH-RISK TX + TOP HIGH-RISK CUSTOMERS -->
+    <div class="panel-grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Recent High-Risk Transactions</h3><p>Flagged by the AI model · click a row for the customer</p></div><a href="risk-monitoring.html" class="link">View All</a></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Risk Score</th><th>Status</th></tr></thead>
+            <tbody id="highRiskTxBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h3>Top High-Risk Customers</h3><p>Ranked by risk score · click a row to open</p></div><a href="customers.html" class="link">View All</a></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Customer</th><th>ID</th><th>Risk Score</th><th>Level</th></tr></thead>
+            <tbody id="topRiskBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW: OPEN DISPUTES + CLASSIFICATION -->
+    <div class="panel-grid grid-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Customers with Open Disputes</h3><p>Aggregated from customer dispute counts · click a row for the customer</p></div><a href="disputes.html" class="link">View All</a></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Customer</th><th>ID</th><th>Open</th><th>Resolved</th><th>Total</th><th>Risk Level</th></tr></thead>
+            <tbody id="disputesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h3>Transaction Classification</h3><p>AI model output</p></div><a href="reports.html" class="link">View Details</a></div>
+        <div id="classificationList" style="display:flex; flex-direction:column; gap:14px;"></div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="panel" style="margin-top:0;">
+      <div class="panel-head"><h3>Quick Actions</h3></div>
+      <div class="quick-actions">
+        <a href="risk-monitoring.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>AI Risk Scoring</button></a>
+        <a href="suspicious-detection.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>Suspicious Detection</button></a>
+        <a href="reports.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-7"/></svg></span>Generate Report</button></a>
+        <a href="alerts.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg></span>Send Alert</button></a>
+        <a href="reports.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>AI Model Performance</button></a>
+        <a href="settings.html" style="text-decoration:none;"><button style="width:100%;"><span class="qicon icon-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9"/></svg></span>System Settings</button></a>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/charts-lite.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/admin.js"></script>
+</body>
+</html>

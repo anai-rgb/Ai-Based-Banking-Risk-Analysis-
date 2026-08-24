@@ -1,1 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Audit Logs</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Audit Logs</h1><p id="countSub">Loading log…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
 
+    <div class="banner" style="margin-top:0; margin-bottom:20px;">
+      <div class="left">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+        <div><h4>What this log actually is</h4><p>The uploaded CSVs don't include historical admin activity, so this table isn't backfilled with invented history. Instead, every row here is logged in real time as <b>this browser session</b> navigates the app — page views, decisions, and setting changes.</p></div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by module, action, user…">
+        </div>
+        <select id="actionFilter">
+          <option value="">All actions</option>
+          <option value="View">View</option>
+          <option value="Update">Update</option>
+          <option value="Login">Login</option>
+        </select>
+        <button id="clearLogBtn" style="border:1px solid var(--border); background:#fff; border-radius:10px; padding:9px 14px; font-size:12.5px; font-weight:700; color:var(--red-600); white-space:nowrap;">Clear log</button>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Log ID</th><th>User</th><th>Action</th><th>Module</th><th>Detail</th><th>Date/Time</th><th>Status</th></tr></thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("audit");
+  if (!session) return;
+  AuditLog.record("View", "Audit Logs");
+
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDT = iso => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const actionBadge = { View: "blue", Update: "amber", Login: "green" };
+
+  const logs = AuditLog.all();
+  document.getElementById("countSub").textContent = `${logs.length.toLocaleString("en-IN")} actions recorded in this browser session.`;
+
+  const kpis = [
+    { label: "Total Log Entries", value: fmtNum(logs.length), icon: "icon-blue", svg: `<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>` },
+    { label: "Views", value: fmtNum(logs.filter(l => l.action === "View").length), icon: "icon-violet", svg: `<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>` },
+    { label: "Updates", value: fmtNum(logs.filter(l => l.action === "Update").length), icon: "icon-amber", svg: `<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  function buildPage() {
+    createListPage({
+      data: logs,
+      pageSize: 25,
+      searchInputId: "searchInput",
+      searchFields: ["module", "action", "user", "detail"],
+      filters: [{ elId: "actionFilter", field: "action" }],
+      defaultSort: null,
+      bodyId: "logsBody",
+      countId: "resultsCount",
+      paginationId: "pagination",
+      colSpan: 7,
+      rowAttrs: () => "",
+      columns: [
+        { render: l => `<span class="mono">${l.id}</span>` },
+        { render: l => l.user },
+        { render: l => `<span class="badge ${actionBadge[l.action] || "gray"}">${l.action}</span>` },
+        { render: l => l.module },
+        { render: l => l.detail || "—" },
+        { render: l => fmtDT(l.timestamp) },
+        { render: l => `<span class="badge green">${l.status}</span>` },
+      ],
+      emptyMessage: "No log entries yet — actions you take in this app will appear here.",
+    });
+  }
+  buildPage();
+  document.getElementById("actionFilter").addEventListener("change", buildPage);
+
+  document.getElementById("clearLogBtn").addEventListener("click", () => {
+    if (!confirm("Clear the local audit log for this browser? This cannot be undone.")) return;
+    AuditLog.clear();
+    location.reload();
+  });
+})();
+</script>
+</body>
+</html>

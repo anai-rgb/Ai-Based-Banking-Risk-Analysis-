@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Employee Management</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Employee Management</h1><p>Bank staff / investigator records.</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      <div class="kpi-card">
+        <div class="icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4M2 11h20"/></svg></div>
+        <div class="label">Employee Records Found</div><div class="value">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div>
+        <div class="label">Cases Needing Assignment</div><div class="value" id="unassignedCount">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon icon-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M2 21c0-4.4 3.1-8 7-8s7 3.6 7 8"/></svg></div>
+        <div class="label">Admin Accounts (fallback owner)</div><div class="value">1</div>
+      </div>
+    </div>
+
+    <div class="panel" style="text-align:center; padding:50px 24px;">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto 14px; width:40px; height:40px;"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4M2 11h20"/></svg>
+        <h3 style="color:var(--navy-950); margin-bottom:8px; font-size:16px;">No employee dataset was uploaded</h3>
+        <p style="max-width:520px; margin:0 auto; line-height:1.7;">
+          <code>bankdispute_customers_2500.csv</code>, <code>customer_demo_login_credentials_2500_simple_password.csv</code> and
+          <code>customer_transactions_20000_updated.csv</code> only cover customers, their logins, and their transactions —
+          there's no staff/investigator table in the dataset. Rather than invent fake employee names and departments,
+          this page stays honest about that gap.
+        </p>
+        <div class="modal-note" style="max-width:520px; margin:20px auto 0; text-align:left;">
+          To make this page fully real, add an <b>employees.csv</b> with columns like
+          <code>employee_id, name, email, department, role, status</code> — the same CSV → JS pipeline used for
+          customers and transactions in this app will pick it up the same way.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><h3>Open Cases Awaiting Assignment</h3><p>Real customers with open disputes — currently unassigned since there's no employee table to assign them to.</p></div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Customer</th><th>ID</th><th>Open Disputes</th><th>Risk Level</th></tr></thead>
+          <tbody id="unassignedBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("employees");
+  if (!session) return;
+  AuditLog.record("View", "Employee Management");
+
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const levelBadge = { Low: "green", Medium: "amber", High: "orange", "Very High": "red" };
+
+  const openCases = DB.disputes.filter(d => d.open > 0).sort((a, b) => b.open - a.open).slice(0, 20);
+  document.getElementById("unassignedCount").textContent = fmtNum(DB.disputes.filter(d => d.open > 0).length);
+  document.getElementById("unassignedBody").innerHTML = openCases.map(d => `
+    <tr class="clickable" onclick="location.href='customer-details.html?id=${d.customer_id}'">
+      <td>${d.customer_name}</td>
+      <td class="mono">${d.customer_id}</td>
+      <td><span class="badge amber">${d.open}</span></td>
+      <td><span class="badge ${levelBadge[d.risk_level] || "gray"}">${d.risk_level}</span></td>
+    </tr>`).join("") || `<tr><td colspan="4" style="text-align:center; color:var(--ink-500); padding:20px;">No open disputes right now.</td></tr>`;
+})();
+</script>
+</body>
+</html>

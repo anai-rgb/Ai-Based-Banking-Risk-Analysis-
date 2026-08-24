@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Risk Monitoring</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Risk Monitoring</h1><p>Live risk metrics computed from all transactions and customers on record.</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-grid grid-2" style="margin-bottom:16px;">
+      <div class="panel">
+        <div class="panel-head"><h3>Transaction Risk Levels</h3></div>
+        <div id="riskDonut" style="min-height:190px;"></div>
+        <div class="legend-list" id="riskLegend"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Customer Risk Levels</h3></div>
+        <div id="custRiskDonut" style="min-height:190px;"></div>
+        <div class="legend-list" id="custRiskLegend"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head"><div><h3>Highest-Risk Transactions</h3><p>Top 15 by risk score across the full dataset</p></div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Risk Score</th><th>Risk Level</th><th>Date</th></tr></thead>
+          <tbody id="topTxBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><h3>Highest-Risk Customers</h3><p>Top 15 by risk score</p></div><a href="customers.html" class="link">View All</a></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Customer</th><th>ID</th><th>Risk Score</th><th>Risk Level</th><th>Open Disputes</th></tr></thead>
+          <tbody id="topCustBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/charts-lite.js"></script>
+<script src="../js/global-search.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("risk");
+  if (!session) return;
+  AuditLog.record("View", "Risk Monitoring");
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  const tx = DB.transactions, customers = DB.customers;
+  const rlBadge = { "High Risk": "orange", Suspicious: "red", "Medium Risk": "amber", Normal: "green" };
+  const custLevelBadge = { Low: "green", Medium: "amber", High: "orange", "Very High": "red" };
+
+  const avgTxRisk = tx.reduce((s, t) => s + t.risk_score, 0) / tx.length;
+  const avgCustRisk = customers.reduce((s, c) => s + c.risk_score, 0) / customers.length;
+  const highestTx = tx.slice().sort((a, b) => b.risk_score - a.risk_score)[0];
+
+  const kpis = [
+    { label: "Monitored Transactions", value: fmtNum(tx.length), icon: "icon-blue", svg: `<path d="M7 7h10M7 12h10M7 17h6"/>` },
+    { label: "Avg. Transaction Risk", value: avgTxRisk.toFixed(1), icon: "icon-amber", svg: `<path d="M3 12h4l3 8 4-16 3 8h4"/>` },
+    { label: "Avg. Customer Risk", value: avgCustRisk.toFixed(1), icon: "icon-violet", svg: `<circle cx="9" cy="7" r="4"/><path d="M2 21c0-4.4 3.1-8 7-8s7 3.6 7 8"/>` },
+    { label: "Highest Risk Score", value: highestTx.risk_score, icon: "icon-red", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  // Transaction risk donut
+  const txDist = { Normal: 0, "Medium Risk": 0, "High Risk": 0, Suspicious: 0 };
+  tx.forEach(t => { if (txDist[t.risk_level] !== undefined) txDist[t.risk_level]++; });
+  const txColors = { Normal: "#17a06a", "Medium Risk": "#d68a00", "High Risk": "#e0662f", Suspicious: "#dc3545" };
+  const txTotal = Object.values(txDist).reduce((a, b) => a + b, 0);
+  document.getElementById("riskLegend").innerHTML = Object.entries(txDist).map(([k, v]) => `
+    <div class="item"><span class="swatch" style="background:${txColors[k]}"></span><span>${k}</span><b>${fmtNum(v)}</b><span class="pct">(${(v/txTotal*100).toFixed(1)}%)</span></div>`).join("");
+  ChartsLite.donut(document.getElementById("riskDonut"), { data: txDist, colors: txColors, onClick: (label) => location.href = `transactions.html?risk=${encodeURIComponent(label)}` });
+
+  // Customer risk donut
+  const custDist = { Low: 0, Medium: 0, High: 0, "Very High": 0 };
+  customers.forEach(c => { if (custDist[c.risk_level] !== undefined) custDist[c.risk_level]++; });
+  const custColors = { Low: "#17a06a", Medium: "#d68a00", High: "#e0662f", "Very High": "#dc3545" };
+  const custTotal = Object.values(custDist).reduce((a, b) => a + b, 0);
+  document.getElementById("custRiskLegend").innerHTML = Object.entries(custDist).map(([k, v]) => `
+    <div class="item"><span class="swatch" style="background:${custColors[k]}"></span><span>${k}</span><b>${fmtNum(v)}</b><span class="pct">(${(v/custTotal*100).toFixed(1)}%)</span></div>`).join("");
+  ChartsLite.donut(document.getElementById("custRiskDonut"), { data: custDist, colors: custColors, onClick: (label) => location.href = `customers.html?risk=${encodeURIComponent(label)}` });
+
+  // Top 15 risky transactions
+  const topTx = tx.slice().sort((a, b) => b.risk_score - a.risk_score).slice(0, 15);
+  document.getElementById("topTxBody").innerHTML = topTx.map(t => `
+    <tr class="clickable" onclick="location.href='transaction-details.html?id=${t.id}'">
+      <td class="mono">${t.id}</td><td>${t.customer_id}</td><td class="amount-out">${fmtINR(t.amount)}</td>
+      <td><b>${t.risk_score}</b></td><td><span class="badge ${rlBadge[t.risk_level] || "gray"}">${t.risk_level}</span></td>
+      <td>${fmtDate(t.date)}</td>
+    </tr>`).join("");
+
+  // Top 15 risky customers
+  const topCust = customers.slice().sort((a, b) => b.risk_score - a.risk_score).slice(0, 15);
+  document.getElementById("topCustBody").innerHTML = topCust.map(c => `
+    <tr class="clickable" onclick="location.href='customer-details.html?id=${c.customer_id}'">
+      <td>${c.full_name}</td><td class="mono">${c.customer_id}</td><td><b>${c.risk_score}</b></td>
+      <td><span class="badge ${custLevelBadge[c.risk_level] || "gray"}">${c.risk_level}</span></td>
+      <td>${c.open_disputes > 0 ? `<span class="badge amber">${c.open_disputes}</span>` : "0"}</td>
+    </tr>`).join("");
+})();
+</script>
+</body>
+</html>

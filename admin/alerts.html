@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Alerts &amp; Notifications</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Alerts &amp; Notifications</h1><p id="countSub">Loading alerts…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by customer ID, transaction ID, alert type…">
+        </div>
+        <select id="typeFilter">
+          <option value="">All alert types</option>
+          <option value="Suspicious transaction">Suspicious transaction</option>
+          <option value="High-risk transaction">High-risk transaction</option>
+          <option value="New device login">New device login</option>
+          <option value="New beneficiary">New beneficiary</option>
+          <option value="Location mismatch">Location mismatch</option>
+          <option value="Unusual transaction time">Unusual transaction time</option>
+        </select>
+        <select id="readFilter">
+          <option value="">All (read + unread)</option>
+          <option value="unread">Unread only</option>
+          <option value="read">Read only</option>
+        </select>
+        <select id="sortFilter">
+          <option value="date_desc">Sort: Newest first</option>
+          <option value="risk_desc">Sort: Risk score (high → low)</option>
+          <option value="amount_desc">Sort: Amount (high → low)</option>
+        </select>
+        <button id="markAllReadBtn" style="border:1px solid var(--border); background:#fff; border-radius:10px; padding:9px 14px; font-size:12.5px; font-weight:700; color:var(--ink-700); white-space:nowrap;">Mark all read</button>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th></th><th>Alert ID</th><th>Type</th><th>Customer</th><th>Transaction</th><th>Amount</th><th>Risk</th><th>Date</th></tr></thead>
+          <tbody id="alertsBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("alerts");
+  if (!session) return;
+  AuditLog.record("View", "Alerts & Notifications");
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const rlBadge = { "High Risk": "orange", Suspicious: "red", "Medium Risk": "amber", Normal: "green" };
+  const typeIcon = {
+    "Suspicious transaction": "red", "High-risk transaction": "orange", "New device login": "amber",
+    "New beneficiary": "amber", "Location mismatch": "orange", "Unusual transaction time": "amber"
+  };
+
+  const alerts = DB.alerts();
+  document.getElementById("countSub").textContent = `${alerts.length.toLocaleString("en-IN")} alerts generated from real transaction risk signals · ${DB.unreadCount()} unread.`;
+
+  function renderKpis() {
+    const unread = DB.unreadCount();
+    const bySeverity = { Suspicious: 0, "High Risk": 0 };
+    alerts.forEach(a => { if (bySeverity[a.risk_level] !== undefined) bySeverity[a.risk_level]++; });
+    const kpis = [
+      { label: "Total Alerts", value: fmtNum(alerts.length), icon: "icon-amber", svg: `<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>` },
+      { label: "Unread", value: fmtNum(unread), icon: "icon-red", svg: `<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>` },
+      { label: "Suspicious", value: fmtNum(bySeverity.Suspicious), icon: "icon-red", svg: `<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>` },
+      { label: "High Risk", value: fmtNum(bySeverity["High Risk"]), icon: "icon-orange", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+    ];
+    document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+      <div class="kpi-card">
+        <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+        <div class="label">${k.label}</div><div class="value">${k.value}</div>
+      </div>`).join("");
+  }
+  renderKpis();
+
+  function customFiltered() {
+    const typeVal = document.getElementById("typeFilter").value;
+    const readVal = document.getElementById("readFilter").value;
+    const readSet = DB.getReadSet();
+    let rows = alerts;
+    if (typeVal) rows = rows.filter(a => a.type === typeVal);
+    if (readVal === "unread") rows = rows.filter(a => !readSet.has(a.alert_id));
+    if (readVal === "read") rows = rows.filter(a => readSet.has(a.alert_id));
+    return rows;
+  }
+
+  let listPage;
+  function buildPage() {
+    listPage = createListPage({
+      data: customFiltered(),
+      pageSize: 25,
+      searchInputId: "searchInput",
+      searchFields: ["alert_id", "customer_id", "transaction_id", "type"],
+      sortSelectId: "sortFilter",
+      sortFns: {
+        date_desc: (a, b) => (b.date + b.time).localeCompare(a.date + a.time),
+        risk_desc: (a, b) => b.risk_score - a.risk_score,
+        amount_desc: (a, b) => b.amount - a.amount,
+      },
+      defaultSort: "date_desc",
+      bodyId: "alertsBody",
+      countId: "resultsCount",
+      paginationId: "pagination",
+      colSpan: 8,
+      rowAttrs: a => `onclick="location.href='transaction-details.html?id=${a.transaction_id}'"`,
+      columns: [
+        { render: a => DB.getReadSet().has(a.alert_id) ? "" : `<span style="width:8px; height:8px; border-radius:50%; background:var(--red-600); display:inline-block;"></span>` },
+        { render: a => `<span class="mono">${a.alert_id}</span>` },
+        { render: a => `<span class="badge ${typeIcon[a.type] || "gray"}">${a.type}</span>` },
+        { render: a => a.customer_id },
+        { render: a => `<span class="mono">${a.transaction_id}</span>` },
+        { render: a => fmtINR(a.amount) },
+        { render: a => `<b>${a.risk_score}</b> <span class="badge ${rlBadge[a.risk_level] || "gray"}" style="margin-left:4px;">${a.risk_level}</span>` },
+        { render: a => fmtDate(a.date) },
+      ],
+      emptyMessage: "No alerts match your filters.",
+      // onAfterRender now receives only the rows on the current page (see
+      // list-page.js), so this is a single batched localStorage read+write —
+      // not one per alert in the whole filtered set.
+      onAfterRender: (pageRows) => { DB.markReadBatch(pageRows.map(a => a.alert_id)); },
+    });
+  }
+  buildPage();
+  ["typeFilter", "readFilter"].forEach(id => document.getElementById(id).addEventListener("change", buildPage));
+
+  document.getElementById("markAllReadBtn").addEventListener("click", () => {
+    DB.markAllRead();
+    AuditLog.record("Update", "Alerts & Notifications", "Marked all alerts read");
+    buildPage();
+    renderKpis();
+  });
+})();
+</script>
+</body>
+</html>

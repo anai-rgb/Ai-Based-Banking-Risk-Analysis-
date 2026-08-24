@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Disputes</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Disputes</h1><p id="countSub">Loading disputes…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="modal-note" style="margin-bottom:16px;">The CSV records dispute <b>counts</b> per customer (total/open/resolved), not individual case rows with ID/reason/date — so each row below is one customer's dispute summary, not a fabricated single case. This is the real dispute granularity available in the dataset.</div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search customer name or ID…">
+        </div>
+        <select id="statusFilter">
+          <option value="">All</option>
+          <option value="open">Has open disputes</option>
+          <option value="resolved">Has resolved disputes</option>
+        </select>
+        <select id="riskFilter">
+          <option value="">All risk levels</option>
+          <option value="Low">Low</option>
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+          <option value="Very High">Very High</option>
+        </select>
+        <select id="sortFilter">
+          <option value="open_desc">Sort: Open disputes (high → low)</option>
+          <option value="total_desc">Sort: Total disputes (high → low)</option>
+          <option value="risk_desc">Sort: Risk score (high → low)</option>
+        </select>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Customer</th><th>ID</th><th>Open</th><th>Resolved</th><th>Total</th><th>Risk Level</th></tr></thead>
+          <tbody id="disputesBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("disputes");
+  if (!session) return;
+  AuditLog.record("View", "Disputes");
+
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const levelBadge = { Low: "green", Medium: "amber", High: "orange", "Very High": "red" };
+
+  const disputes = DB.disputes;
+  document.getElementById("countSub").textContent = `${disputes.length.toLocaleString("en-IN")} customers with disputes on record.`;
+
+  const totalDisputes = disputes.reduce((s, d) => s + d.total, 0);
+  const totalOpen = disputes.reduce((s, d) => s + d.open, 0);
+  const totalResolved = disputes.reduce((s, d) => s + d.resolved, 0);
+  const kpis = [
+    { label: "Total Disputes", value: fmtNum(totalDisputes), icon: "icon-amber", svg: `<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>` },
+    { label: "Open Disputes", value: fmtNum(totalOpen), icon: "icon-orange", svg: `<path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/>` },
+    { label: "Resolved Disputes", value: fmtNum(totalResolved), icon: "icon-green", svg: `<path d="M20 6L9 17l-5-5"/>` },
+    { label: "Customers Affected", value: fmtNum(disputes.length), icon: "icon-blue", svg: `<circle cx="9" cy="7" r="4"/><path d="M2 21c0-4.4 3.1-8 7-8s7 3.6 7 8"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  // preset from URL: ?status=Resolved (from dashboard KPI click)
+  const params = new URLSearchParams(location.search);
+  if ((params.get("status") || "").toLowerCase() === "resolved") document.getElementById("statusFilter").value = "resolved";
+
+  function customFiltered() {
+    const statusVal = document.getElementById("statusFilter").value;
+    let rows = disputes;
+    if (statusVal === "open") rows = rows.filter(d => d.open > 0);
+    if (statusVal === "resolved") rows = rows.filter(d => d.resolved > 0);
+    return rows;
+  }
+
+  function buildPage() {
+    createListPage({
+      data: customFiltered(),
+      pageSize: 25,
+      searchInputId: "searchInput",
+      searchFields: ["customer_name", "customer_id"],
+      filters: [{ elId: "riskFilter", field: "risk_level" }],
+      sortSelectId: "sortFilter",
+      sortFns: {
+        open_desc: (a, b) => b.open - a.open,
+        total_desc: (a, b) => b.total - a.total,
+        risk_desc: (a, b) => b.risk_score - a.risk_score,
+      },
+      defaultSort: "open_desc",
+      bodyId: "disputesBody",
+      countId: "resultsCount",
+      paginationId: "pagination",
+      colSpan: 6,
+      rowAttrs: d => `onclick="location.href='customer-details.html?id=${d.customer_id}'"`,
+      columns: [
+        { render: d => d.customer_name },
+        { render: d => `<span class="mono">${d.customer_id}</span>` },
+        { render: d => d.open > 0 ? `<span class="badge amber">${d.open}</span>` : "0" },
+        { render: d => d.resolved > 0 ? `<span class="badge green">${d.resolved}</span>` : "0" },
+        { render: d => d.total },
+        { render: d => `<span class="badge ${levelBadge[d.risk_level] || "gray"}">${d.risk_level}</span>` },
+      ],
+      emptyMessage: "No disputes match your filters.",
+    });
+  }
+  buildPage();
+  document.getElementById("statusFilter").addEventListener("change", buildPage);
+})();
+</script>
+</body>
+</html>

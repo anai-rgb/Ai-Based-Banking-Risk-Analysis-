@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Suspicious Detection</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="stylesheet" href="../css/extra.css">
+</head>
+<body class="app-body">
+  <div id="sidebarMount"></div>
+  <main class="main">
+    <div class="topbar">
+      <div class="titles"><h1>Suspicious Detection <span class="badge violet" style="margin-left:8px; padding:3px 9px; vertical-align:middle;">AI</span></h1><p id="countSub">Loading…</p></div>
+      <div class="topbar-right">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="globalSearchInput" placeholder="Search customers, transactions, cases…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+        <a class="icon-btn" href="alerts.html" style="text-decoration:none; display:grid;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot" id="topAlertCount">0</span></a>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-grid grid-2-1" style="margin-bottom:16px;">
+      <div class="panel">
+        <div class="panel-head"><h3>Risk Level Distribution (Transactions)</h3></div>
+        <div id="riskBar" style="min-height:190px;"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Top Flag Reasons</h3></div>
+        <div id="reasonList" style="display:flex; flex-direction:column; gap:12px;"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="directory-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search transaction ID, customer…">
+        </div>
+        <select id="thresholdFilter">
+          <option value="Suspicious">Suspicious only</option>
+          <option value="highrisk">High Risk + Suspicious</option>
+        </select>
+        <select id="sortFilter">
+          <option value="risk_desc">Sort: Risk score (high → low)</option>
+          <option value="amount_desc">Sort: Amount (high → low)</option>
+          <option value="date_desc">Sort: Newest first</option>
+        </select>
+      </div>
+      <div class="directory-count" id="resultsCount"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Risk Score</th><th>Flags</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody id="suspiciousBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+<script src="../js/customers-data.js"></script>
+<script src="../js/transactions-data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/audit-log.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/charts-lite.js"></script>
+<script src="../js/global-search.js"></script>
+<script src="../js/list-page.js"></script>
+<script>
+(function () {
+  const session = AdminSidebar.mount("suspicious");
+  if (!session) return;
+  AuditLog.record("View", "Suspicious Detection");
+
+  const fmtINR = n => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtNum = n => Number(n).toLocaleString("en-IN");
+  const fmtDate = d => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const txStatusBadge = { Completed: "green", Flagged: "red", "Under Review": "amber", Declined: "gray" };
+
+  const tx = DB.transactions;
+  const suspicious = tx.filter(t => t.risk_level === "Suspicious");
+  const highRisk = tx.filter(t => t.risk_level === "High Risk");
+  document.getElementById("countSub").textContent = `${suspicious.length.toLocaleString("en-IN")} transactions classified "Suspicious" by the risk model.`;
+
+  const kpis = [
+    { label: "Suspicious Transactions", value: fmtNum(suspicious.length), icon: "icon-red", svg: `<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>` },
+    { label: "High Risk Transactions", value: fmtNum(highRisk.length), icon: "icon-orange", svg: `<path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/>` },
+    { label: "Total Value Flagged", value: fmtINR(suspicious.reduce((s, t) => s + t.amount, 0)), icon: "icon-amber", svg: `<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>` },
+    { label: "Avg. Suspicious Score", value: suspicious.length ? (suspicious.reduce((s, t) => s + t.risk_score, 0) / suspicious.length).toFixed(1) : "—", icon: "icon-violet", svg: `<path d="M3 12h4l3 8 4-16 3 8h4"/>` },
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="icon ${k.icon}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${k.svg}</svg></div>
+      <div class="label">${k.label}</div><div class="value">${k.value}</div>
+    </div>`).join("");
+
+  // Risk distribution bar (all 4 tiers, for context)
+  const dist = { Normal: 0, "Medium Risk": 0, "High Risk": 0, Suspicious: 0 };
+  tx.forEach(t => { if (dist[t.risk_level] !== undefined) dist[t.risk_level]++; });
+  ChartsLite.bar(document.getElementById("riskBar"), {
+    data: dist, colors: { Normal: "#17a06a", "Medium Risk": "#d68a00", "High Risk": "#e0662f", Suspicious: "#dc3545" }
+  });
+
+  // Top flag reasons among suspicious+highrisk
+  const flagPool = [...suspicious, ...highRisk];
+  const reasonCounts = { "New beneficiary": 0, "New device": 0, "Location mismatch": 0, "Unusual time": 0 };
+  flagPool.forEach(t => {
+    if (t.is_new_beneficiary) reasonCounts["New beneficiary"]++;
+    if (t.is_new_device) reasonCounts["New device"]++;
+    if (t.location_mismatch) reasonCounts["Location mismatch"]++;
+    if (t.is_unusual_time) reasonCounts["Unusual time"]++;
+  });
+  const reasonTotal = Math.max(1, ...Object.values(reasonCounts));
+  document.getElementById("reasonList").innerHTML = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]).map(([label, count]) => `
+    <div>
+      <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px;"><span>${label}</span><b>${fmtNum(count)}</b></div>
+      <div style="height:7px; background:#eef0f5; border-radius:999px; overflow:hidden;"><div style="height:100%; width:${(count/reasonTotal*100)}%; background:#8b5cf6; border-radius:999px;"></div></div>
+    </div>`).join("");
+
+  function flagsFor(t) {
+    const f = [];
+    if (t.is_new_beneficiary) f.push("New beneficiary");
+    if (t.is_new_device) f.push("New device");
+    if (t.location_mismatch) f.push("Location mismatch");
+    if (t.is_unusual_time) f.push("Unusual time");
+    return f;
+  }
+
+  function buildPage() {
+    const mode = document.getElementById("thresholdFilter").value;
+    const data = mode === "highrisk" ? [...suspicious, ...highRisk] : suspicious;
+    createListPage({
+      data, pageSize: 25,
+      searchInputId: "searchInput",
+      searchFields: ["id", "customer_id"],
+      filters: [],
+      sortSelectId: "sortFilter",
+      sortFns: {
+        risk_desc: (a, b) => b.risk_score - a.risk_score,
+        amount_desc: (a, b) => b.amount - a.amount,
+        date_desc: (a, b) => (b.date + b.time).localeCompare(a.date + a.time),
+      },
+      defaultSort: "risk_desc",
+      bodyId: "suspiciousBody", countId: "resultsCount", paginationId: "pagination", colSpan: 7,
+      rowAttrs: t => `onclick="location.href='transaction-details.html?id=${t.id}'"`,
+      columns: [
+        { render: t => `<span class="mono">${t.id}</span>` },
+        { render: t => t.customer_id },
+        { render: t => `<span class="amount-out">${fmtINR(t.amount)}</span>` },
+        { render: t => `<b>${t.risk_score}</b>` },
+        { render: t => flagsFor(t).length ? flagsFor(t).map(f => `<span class="badge amber" style="margin-right:3px;">${f}</span>`).join("") : `<span style="color:var(--ink-500);">—</span>` },
+        { render: t => fmtDate(t.date) },
+        { render: t => `<span class="badge ${txStatusBadge[t.status] || "gray"}">${t.status}</span>` },
+      ],
+      emptyMessage: "No suspicious transactions match your filters.",
+    });
+  }
+  buildPage();
+  document.getElementById("thresholdFilter").addEventListener("change", buildPage);
+})();
+</script>
+</body>
+</html>
