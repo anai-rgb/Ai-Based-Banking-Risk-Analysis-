@@ -1,0 +1,127 @@
+/* ============================================================
+   AEGIS BANK — Modal, directory, and detail-page styles
+   ============================================================ */
+
+/* -------- Generic modal (used by js/modal.js) -------- */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(11,18,36,0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+.modal-overlay.show { opacity: 1; pointer-events: auto; }
+.modal-box {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 460px;
+  max-height: 86vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(10px) scale(.98);
+  transition: transform .15s ease;
+}
+.modal-overlay.show .modal-box { transform: none; }
+.modal-box.wide { max-width: 720px; }
+
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: #fff; z-index: 1;
+}
+.modal-head h3 { font-size: 15.5px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+.modal-head .micon {
+  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none;
+}
+.modal-head .micon svg { width: 17px; height: 17px; }
+.modal-close {
+  border: 0; background: #f2f3f8; width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center; color: var(--ink-500); flex: none;
+}
+.modal-close svg { width: 15px; height: 15px; }
+.modal-close:hover { background: #e7e9f2; color: var(--ink-900); }
+.modal-body { padding: 18px 20px 22px; font-size: 13.5px; color: var(--ink-700); line-height: 1.6; }
+
+.mstat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 14px; }
+.mstat-grid .mstat { background: var(--paper); border-radius: 10px; padding: 11px 13px; }
+.mstat-grid .mstat b { display:block; font-family: var(--font-display); font-size: 17px; color: var(--navy-950); }
+.mstat-grid .mstat span { font-size: 11px; color: var(--ink-500); }
+
+ul.mlist { display: flex; flex-direction: column; gap: 9px; }
+ul.mlist li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding-bottom: 9px; border-bottom: 1px solid #f0f2f8; }
+ul.mlist li:last-child { border-bottom: 0; padding-bottom: 0; }
+ul.mlist li span { color: var(--ink-500); }
+ul.mlist li b { font-weight: 600; color: var(--ink-900); text-align: right; }
+
+.modal-note {
+  margin-top: 14px;
+  background: var(--violet-100);
+  border: 1px dashed #c9bcff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #4a3aa0;
+  line-height: 1.6;
+}
+
+/* -------- Clickable table rows -------- */
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--violet-100); }
+
+/* -------- Directory toolbar -------- */
+.directory-toolbar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.directory-toolbar .search-box { flex: 1; min-width: 240px; }
+.directory-toolbar select {
+  border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 13px;
+  background: #fff; color: var(--ink-700);
+}
+.directory-count { font-size: 12.5px; color: var(--ink-500); margin-bottom: 12px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.pagination button {
+  border: 1px solid var(--border); background: #fff; min-width: 32px; height: 32px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--ink-700); padding: 0 8px;
+}
+.pagination button.active { background: var(--navy-950); color: #fff; border-color: var(--navy-950); }
+.pagination button:disabled { opacity: 0.4; }
+.pagination span.gap { color: var(--ink-300); padding: 0 2px; }
+
+/* -------- Customer detail page -------- */
+.detail-hero {
+  display: flex; align-items: center; gap: 18px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 22px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.detail-hero .avatar-lg {
+  width: 66px; height: 66px; border-radius: 16px; flex: none;
+  background: linear-gradient(135deg,#7c5cff,#4d33c9); color: #fff;
+  display: grid; place-items: center; font-family: var(--font-display); font-size: 22px; font-weight: 700;
+}
+.detail-hero .who { flex: 1; min-width: 200px; }
+.detail-hero .who h2 { font-size: 20px; font-weight: 700; }
+.detail-hero .who p { color: var(--ink-500); font-size: 13px; margin-top: 3px; }
+.detail-hero .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.detail-hero .back-btn {
+  border: 1px solid var(--border); background: #fff; padding: 9px 14px; border-radius: 10px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-700); display: flex; align-items: center; gap: 6px;
+}
+.detail-hero .back-btn svg { width: 14px; height: 14px; }
+
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
+.info-grid .cell { background: var(--paper); border-radius: 10px; padding: 10px 12px; }
+.info-grid .cell span { display:block; font-size: 10.5px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px;}
+.info-grid .cell b { font-size: 13px; color: var(--ink-900); }
+@media (max-width: 900px) { .info-grid { grid-template-columns: repeat(2,1fr); } }
+
+.empty-state {
+  text-align: center; padding: 34px 12px; color: var(--ink-500); font-size: 13px;
+}
+.empty-state svg { width: 34px; height: 34px; color: var(--ink-300); margin-bottom: 10px; }
