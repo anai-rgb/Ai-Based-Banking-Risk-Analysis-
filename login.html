@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis Bank · Sign in</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-body">
+
+  <!-- ===== LEFT: BRAND PANEL ===== -->
+  <section class="brand-panel">
+    <div class="grid-overlay"></div>
+    <div class="glow"></div>
+
+    <div class="brand-mark">
+      <div class="shield">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z" fill="#fff"/></svg>
+      </div>
+      <div class="wordmark">AEGIS BANK<span>Risk Intelligence Platform</span></div>
+    </div>
+
+    <div class="brand-copy">
+      <div class="eyebrow">System status · all models active</div>
+      <h1>Every transaction, <em>read</em> before it's regretted.</h1>
+      <p>Aegis pairs your ledger with an AI investigator — scoring risk, explaining its reasoning, and routing disputes to the right desk before they become losses.</p>
+    </div>
+
+    <div class="brand-stats">
+      <div class="stat"><b>92.4%</b><span>Model accuracy</span></div>
+      <div class="stat"><b>20,000+</b><span>Txns monitored</span></div>
+      <div class="stat"><b>&lt;2 min</b><span>Avg. AI triage time</span></div>
+    </div>
+
+    <div class="pulse-wrap">
+      <svg class="pulse-line" viewBox="0 0 460 46" preserveAspectRatio="none">
+        <polyline points="0,23 40,23 55,23 65,6 75,40 85,23 130,23 150,23 162,12 172,32 182,18 192,23 240,23 260,23 272,4 284,42 296,23 340,23 360,23 372,14 382,30 392,23 460,23"
+          fill="none" stroke="#7c5cff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div class="pulse-caption">
+        <span class="live">Live risk signal</span>
+        <span>Updated moments ago</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== RIGHT: FORM PANEL ===== -->
+  <section class="form-panel">
+    <div class="login-card">
+
+      <div class="heading">
+        <h2 id="heading-title">Welcome back</h2>
+        <p id="heading-sub">Sign in to your customer portal to continue.</p>
+      </div>
+
+      <div class="role-switch" role="tablist" aria-label="Choose portal">
+        <button type="button" class="active" data-role="customer" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+          Customer
+        </button>
+        <button type="button" data-role="admin" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.4 8.8-8 11-4.6-2.2-8-6-8-11V5l8-3z"/></svg>
+          Admin
+        </button>
+      </div>
+
+      <div class="error-box" id="errorBox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span id="errorText">Invalid credentials. Please try again.</span>
+      </div>
+
+      <form id="loginForm" autocomplete="off">
+        <div class="field">
+          <label for="username" id="usernameLabel">Email / Username</label>
+          <div class="input-wrap">
+            <input type="text" id="username" placeholder="you@example.com" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input type="password" id="password" placeholder="••••••••" required>
+            <button type="button" class="toggle-pw" id="togglePw" aria-label="Show password">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-row-between">
+          <label class="remember"><input type="checkbox"> Remember me</label>
+          <span class="forgot">Forgot password?</span>
+        </div>
+
+        <button type="submit" class="login-btn" id="loginBtn">
+          <span id="loginBtnText">Sign in</span>
+        </button>
+      </form>
+
+      <div class="demo-hint" id="demoHint">
+        Demo dataset · try <b>sneha.kumar1@example.com</b> / <b>Demo@123</b>,
+        or any customer email from the CSV with password <b>Demo@123</b>.
+      </div>
+
+      <p class="register-link">New here? <a href="register.html">Create a customer account</a></p>
+    </div>
+  </section>
+
+<script src="js/customers-data.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>
